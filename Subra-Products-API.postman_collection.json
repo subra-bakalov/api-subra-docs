@@ -224,7 +224,7 @@
   "variable": [
     {
       "key": "products_api_url",
-      "value": "https://api.subra.bg"
+      "value": "https://id.subra.bg"
     },
     {
       "key": "main_api_url",

@@ -1,0 +1,254 @@
+{
+  "info": {
+    "name": "Subra Product Category Flow",
+    "_postman_id": "d6df7b1d-3f9f-4c1f-92f8-8e2d8d8f1001",
+    "description": "Postman collection for fetching categories and creating a product with categoryId.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "1. Get Categories",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{catalog_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{products_api_url}}/categories",
+          "host": [
+            "{{products_api_url}}"
+          ],
+          "path": [
+            "categories"
+          ]
+        },
+        "description": "Fetch all categories as a JSON list of id and name."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const data = pm.response.json();",
+              "",
+              "pm.test('Response is array', function () {",
+              "  pm.expect(Array.isArray(data)).to.eql(true);",
+              "});",
+              "",
+              "if (Array.isArray(data) && data.length > 0) {",
+              "  pm.environment.set('category_id', data[0].id);",
+              "  pm.environment.set('category_name', data[0].name);",
+              "}",
+              "",
+              "console.log('Selected category:', pm.environment.get('category_id'), pm.environment.get('category_name'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Get Category By Id",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{catalog_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{products_api_url}}/categories?id={{category_id}}",
+          "host": [
+            "{{products_api_url}}"
+          ],
+          "path": [
+            "categories"
+          ],
+          "query": [
+            {
+              "key": "id",
+              "value": "{{category_id}}"
+            }
+          ]
+        },
+        "description": "Fetch a single category by id."
+      }
+    },
+    {
+      "name": "3. List Products",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{catalog_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{products_api_url}}/products?limit={{limit}}&offset={{offset}}",
+          "host": [
+            "{{products_api_url}}"
+          ],
+          "path": [
+            "products"
+          ],
+          "query": [
+            {
+              "key": "limit",
+              "value": "{{limit}}"
+            },
+            {
+              "key": "offset",
+              "value": "{{offset}}"
+            }
+          ]
+        },
+        "description": "Fetch products list using pagination parameters."
+      }
+    },
+    {
+      "name": "4. Create Product With Full Payload",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{main_api_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Тестов продукт от Postman\",\n  \"categoryId\": {{category_id}},\n  \"currencyId\": 1,\n  \"price\": \"12.50\",\n  \"oldPrice\": \"14.90\",\n  \"quantity\": 5,\n  \"visibility\": 1,\n  \"barcode\": \"3800123456789\",\n  \"babh\": \"BG202600123\",\n  \"slug\": \"testov-produkt-ot-postman\",\n  \"text\": \"Кратко описание на продукта.\",\n  \"leaflet\": \"Информация за прием и съхранение.\",\n  \"searchWords\": \"продукт тест postman\",\n  \"metaTitle\": \"Тестов продукт\",\n  \"metaKeywords\": \"тестов продукт, postman, api\",\n  \"metaDescription\": \"Примерен продукт, създаден през API.\",\n  \"i18nForeignKey\": 1001,\n  \"i18nLocale\": \"bg-BG\",\n  \"itemWeight\": 0.25,\n  \"itemHeight\": 12.5,\n  \"itemWidth\": 4.2,\n  \"itemLength\": 4.2,\n  \"itemVolume\": 0.15,\n  \"itemWeightUnit\": \"kg\",\n  \"itemVolumeUnit\": \"l\",\n  \"isNew\": true,\n  \"isBestseller\": false,\n  \"isByPrescription\": false,\n  \"inPromotion\": false,\n  \"activationDate\": \"2026-03-24T10:00:00+00:00\",\n  \"createdAt\": \"2026-03-24T10:00:00+00:00\",\n  \"updatedAt\": \"2026-03-24T10:00:00+00:00\",\n  \"image1\": \"https://example.com/product-1.jpg\",\n  \"image2\": \"https://example.com/product-2.jpg\",\n  \"image3\": \"https://example.com/product-3.jpg\",\n  \"image4\": \"https://example.com/product-4.jpg\",\n  \"image5\": \"https://example.com/product-5.jpg\"\n}"
+        },
+        "url": {
+          "raw": "{{main_api_url}}/api/v1/products",
+          "host": [
+            "{{main_api_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "products"
+          ]
+        },
+        "description": "Create a product using the selected categoryId."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is success', function () {",
+              "  pm.expect(pm.response.code).to.be.oneOf([200, 201]);",
+              "});",
+              "",
+              "const data = pm.response.json();",
+              "if (data && data.id) {",
+              "  pm.environment.set('created_product_id', data.id);",
+              "}",
+              "",
+              "console.log('Created product id:', pm.environment.get('created_product_id'));"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "5. Negative Test - Invalid Category",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{main_api_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"title\": \"Невалидна категория тест\",\n  \"price\": \"9.99\",\n  \"categoryId\": 999999999\n}"
+        },
+        "url": {
+          "raw": "{{main_api_url}}/api/v1/products",
+          "host": [
+            "{{main_api_url}}"
+          ],
+          "path": [
+            "api",
+            "v1",
+            "products"
+          ]
+        },
+        "description": "Verify that invalid categoryId returns 400."
+      },
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 400', function () {",
+              "  pm.expect(pm.response.code).to.eql(400);",
+              "});",
+              "",
+              "const data = pm.response.json();",
+              "pm.test('Contains invalid category message', function () {",
+              "  const detail = data?.error?.detail || '';",
+              "  pm.expect(detail).to.include('Invalid categoryId');",
+              "});"
+            ]
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "products_api_url",
+      "value": "https://api.subra.bg"
+    },
+    {
+      "key": "main_api_url",
+      "value": "https://api.subra.bg"
+    },
+    {
+      "key": "catalog_token",
+      "value": ""
+    },
+    {
+      "key": "main_api_token",
+      "value": ""
+    },
+    {
+      "key": "category_id",
+      "value": "35"
+    },
+    {
+      "key": "category_name",
+      "value": ""
+    },
+    {
+      "key": "created_product_id",
+      "value": ""
+    }
+  ]
+}

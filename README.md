@@ -152,6 +152,8 @@ GET https://id.subra.bg/categories?id={category_id}
 Authorization: Bearer <catalog_token>
 ```
 
+Продукт може да се запише само в крайна категория (`isLeaf: true`). Ако `categoryId` или някое от `categoryIds` сочи към родителска категория, заявката връща **400**.
+
 ---
 
 ## 6. API Endpoints
@@ -380,7 +382,7 @@ Authorization: Bearer <main_api_token>
 |------|-----|----------|
 | `title` | string | Име на продукта |
 | `price` | string | Цена (като текст, напр. "8.66") |
-| `categoryId` | integer | ID на категория от `/categories` |
+| `categoryId` | integer | ID на крайна категория от `/categories` |
 
 ### 7.2 Опционални полета
 
@@ -436,12 +438,44 @@ Authorization: Bearer <main_api_token>
 | 422 | Валидационни грешки |
 | 500 | Вътрешна грешка |
 
-### 8.2 Примерен грешен отговор
+### 8.2 Невалидна или родителска категория (400)
+
+Липсваща категория:
 
 ```json
 {
   "error": {
-    "detail": "Invalid categoryId \"999999\". Use GET /categories to fetch a valid category id."
+    "status": 400,
+    "title": "Bad Request",
+    "detail": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
+    "path": "/api/v1/products",
+    "violations": [
+      {
+        "field": "",
+        "message": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
+        "code": null
+      }
+    ]
+  }
+}
+```
+
+Родителска категория:
+
+```json
+{
+  "error": {
+    "status": 400,
+    "title": "Bad Request",
+    "detail": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
+    "path": "/api/v1/products",
+    "violations": [
+      {
+        "field": "",
+        "message": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
+        "code": null
+      }
+    ]
   }
 }
 ```
@@ -450,11 +484,19 @@ Authorization: Bearer <main_api_token>
 
 ```json
 {
-  "detail": "Validation failed",
-  "errors": [
-    { "field": "title", "message": "Title is required" },
-    { "field": "price", "message": "Price must be a positive number" }
-  ]
+  "error": {
+    "status": 422,
+    "title": "Unprocessable Entity",
+    "detail": "Validation failed.",
+    "path": "/api/v1/products",
+    "violations": [
+      {
+        "field": "images",
+        "message": "Максимум 5 снимки за продукт.",
+        "code": null
+      }
+    ]
+  }
 }
 ```
 

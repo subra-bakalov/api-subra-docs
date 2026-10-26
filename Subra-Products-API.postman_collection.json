@@ -213,7 +213,7 @@
               "const data = pm.response.json();",
               "pm.test('Contains invalid category message', function () {",
               "  const detail = data?.error?.detail || '';",
-              "  pm.expect(detail).to.include('Invalid categoryId');",
+              "  pm.expect(detail).to.include('Invalid category id');",
               "});"
             ]
           }

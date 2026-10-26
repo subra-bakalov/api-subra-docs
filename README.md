@@ -21,6 +21,9 @@
    - [Получаване на продукт](#64-получаване-на-продукт)
    - [Списък с продукти](#65-списък-с-продукти)
    - [Масови операции](#66-масови-операции-bulk)
+   - [Подавания за преглед](#67-подавания-за-преглед)
+   - [Одобрен каталог](#68-одобрен-каталог)
+   - [Административни endpoints](#69-административни-endpoints)
 7. [Полета на продукта](#7-полета-на-продукта)
 8. [Обработка на грешки](#8-обработка-на-грешки)
 9. [Ограничения и правила](#9-ограничения-и-правила)
@@ -36,8 +39,11 @@
 
 REST API за добавяне и управление на продукти в системата на Subra. API-то поддържа:
 - Създаване/четене/обновяване/изтриване на продукти (CRUD)
+- Списък и статус само на продуктите на текущия клиент
+- Подавания за преглед и статистика по статус
 - Масови операции (bulk create/update)
 - Бързо обновяване на цени и наличности
+- Експорт на одобрения каталог
 - Идемпотентност при създаване
 
 ### 1.2 Base URLs
@@ -49,11 +55,11 @@ REST API за добавяне и управление на продукти в 
 
 ### 1.3 Токени
 
-Необходими са два токена:
-- `catalog_token` - за достъп до категориите
-- `main_api_token` - за CRUD операции с продукти
+Токените се получават от администратор на системата. Всеки токен носи конкретни права (`GET:/api/v1/products`, `POST:/api/v1/product-submissions` и т.н.). Без съответното право отговорът е `403`.
 
-> Токените се получават от администратор на системата.
+- `catalog_token` — категориите на `id.subra.bg`
+- `main_api_token` — продукти и подавания на `api.subra.bg`
+- `approved_products_key` — само `GET /api/v1/approved-products` и `GET /export/approved-products`
 
 ---
 
@@ -259,18 +265,25 @@ Authorization: Bearer <main_api_token>
 ```http
 GET /api/v1/products/{id}
 Authorization: Bearer <main_api_token>
+Accept: application/ld+json
 ```
+
+Отговорът съдържа продукта, включително `status`. Клиентът може да променя и трие само продукт, който самият той е подал.
 
 ### 6.5 Списък с продукти
 
 ```http
-GET /api/v1/products?limit=20&offset=0
+GET /api/v1/products?page=1&itemsPerPage=30
 Authorization: Bearer <main_api_token>
+Accept: application/ld+json
 ```
 
+Връща само продуктите, подадени от потребителя на токена. Продуктите са в `hydra:member`, общият брой е в `hydra:totalItems`. Всеки продукт има `status`.
+
 **Query параметри:**
-- `limit` - брой резултати (по подразбиране 20)
-- `offset` - отместване за пагинация
+
+- `page` — номер на страницата, от 1
+- `itemsPerPage` — брой резултати на страница (по подразбиране 30)
 
 ### 6.6 Масови операции (Bulk)
 
@@ -371,6 +384,170 @@ Authorization: Bearer <main_api_token>
 ```
 
 **Поддържани полета:** `id`, `erpId`, `price`, `oldPrice`, `quantity`, `inPromotion`, `visibility`, `currencyId`
+
+### 6.7 Подавания за преглед
+
+Тези endpoints не са в OpenAPI (`/api/v1/docs`). Токенът трябва да има право за конкретния път, например `GET:/api/v1/product-submissions`. Списъкът и статистиката са само за подаванията на текущия клиент.
+
+#### 6.7.1 Създаване на подаване
+
+```http
+POST /api/v1/product-submissions
+Content-Type: application/json
+Authorization: Bearer <main_api_token>
+```
+
+```json
+{
+  "product": {
+    "title": "Тестов продукт",
+    "barcode": "3800123456789",
+    "price": "10.00",
+    "quantity": 50,
+    "categoryId": 35
+  }
+}
+```
+
+Ако вече има продукт със същия `barcode`, подаването е корекция на него. Ако за този продукт вече има чакащо подаване, отговорът е `409`.
+
+**Успешен отговор (201):**
+
+```json
+{
+  "message": "Product submitted for review",
+  "submission": {
+    "id": 15,
+    "status": "pending",
+    "submittedAt": "2026-10-26 12:00:00",
+    "productId": 12345,
+    "title": "Тестов продукт",
+    "barcode": "3800123456789",
+    "babh": null,
+    "isUpdate": false
+  }
+}
+```
+
+#### 6.7.2 Списък с подаванията на клиента
+
+```http
+GET /api/v1/product-submissions
+Authorization: Bearer <main_api_token>
+```
+
+```json
+{
+  "submissions": [
+    {
+      "id": 15,
+      "status": "changes_requested",
+      "submittedAt": "2026-10-26 12:00:00",
+      "reviewedAt": "2026-10-26 13:00:00",
+      "rejectionReason": null,
+      "changeRequest": "Добавете листовка.",
+      "product": {
+        "id": 12345,
+        "title": "Тестов продукт",
+        "barcode": "3800123456789",
+        "babh": null,
+        "price": "10.00",
+        "quantity": 50,
+        "visibility": 1
+      },
+      "changes": null,
+      "isUpdate": false
+    }
+  ]
+}
+```
+
+`rejectionReason` е попълнено при отказ. `changeRequest` е попълнено, когато администраторът иска корекция. `changes` описва разликите при корекция на съществуващ продукт.
+
+#### 6.7.3 Статистика
+
+```http
+GET /api/v1/product-submissions/stats
+Authorization: Bearer <main_api_token>
+```
+
+```json
+{
+  "stats": {
+    "pending": 2,
+    "approved": 10,
+    "rejected": 1,
+    "changes_requested": 1,
+    "total": 14
+  }
+}
+```
+
+### 6.8 Одобрен каталог
+
+Публичен експорт на одобрените продукти. Ползва отделен ключ, не клиентския токен за CRUD. Ключът се подава като `X-Approved-Products-Key`, `X-Api-Key`, `Authorization: Bearer` или query параметър `key`.
+
+```http
+GET /api/v1/approved-products?limit=100&stock=in_stock
+X-Approved-Products-Key: <approved_products_key>
+```
+
+Същият отговор е и на `GET /export/approved-products`.
+
+**Query параметри:**
+
+- `limit` — от 1 до 500, по подразбиране 100
+- `cursor` — `id` на последния продукт от предишната страница; следващата заявка ползва `next_cursor`
+- `updated_since` — ISO 8601 дата
+- `category_id` — филтър по категория
+- `include_hidden=1` — включва продукти с `visibility` 0
+- `stock` — `all`, `in_stock` или `out_of_stock`
+
+```json
+{
+  "ok": true,
+  "items": [],
+  "limit": 100,
+  "cursor": 0,
+  "next_cursor": null,
+  "has_more": false,
+  "filters": {
+    "status": "approved",
+    "updated_since": null,
+    "category_id": null,
+    "include_hidden": false,
+    "stock": "in_stock"
+  }
+}
+```
+
+Всеки елемент съдържа `id`, `title`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `description`, `images`, `flags` и датите `created_at` и `updated_at`.
+
+### 6.9 Административни endpoints
+
+Не са за клиентския токен.
+
+```http
+POST /api/v1/products/bulk-approve
+POST /api/v1/products/bulk-reject
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+```
+
+```json
+{ "productIds": [12345, 12346] }
+```
+
+Одобряват или отказват само продукти със статус `pending`. Изискват роля `ROLE_ADMIN`.
+
+```http
+GET /api/v1/admin-audit/logs?page=1&limit=20
+Authorization: Bearer <admin_token>
+```
+
+`limit` е най-много 100. Отговорът е `{ "logs": [], "page": 1, "limit": 20 }`.
+
+Вътрешният експорт за услуги в мрежата е `GET /internal/products/approved`. Изисква header `X-Internal-Products-Secret`. Параметри: `limit` (до 200) и `updatedSince`.
 
 ---
 
@@ -532,8 +709,9 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 | Статус | Описание |
 |--------|----------|
 | `pending` | Изчаква одобрение |
-| `approved` | Одобрен и видим (ако visibility=1) |
+| `approved` | Одобрен и видим, ако `visibility` е 1 |
 | `rejected` | Отхвърлен |
+| `changes_requested` | Върнат за корекция |
 
 ---
 
@@ -585,13 +763,13 @@ A: След одобрение от администратор и когато `
 A: Не, снимките трябва да са на външен URL. Подавате само линковете.
 
 **Q: Как да получа списък с моите продукти?**  
-A: `GET /api/v1/products` с пагинация (limit/offset).
+A: `GET /api/v1/products?page=1&itemsPerPage=30`. Отговорът съдържа само вашите продукти.
 
 **Q: Може ли да използвам собствени ID-та?**  
 A: Да, чрез `erpId` полето при bulk операции.
 
 **Q: Как да проверя статуса на продукт?**  
-A: `GET /api/v1/products/{id}` - проверете полето `status`.
+A: `GET /api/v1/products/{id}` или списъкът `GET /api/v1/products`. Полето е `status`. Причината за отказ и поисканата корекция са в `GET /api/v1/product-submissions`, а бройките са в `GET /api/v1/product-submissions/stats`.
 
 **Q: Какво е идемпотентност и защо ми трябва?**  
 A: Предпазва от дублиране при мрежови грешки. Същият Idempotency-Key със същите данни винаги връща същия резултат.
@@ -606,4 +784,4 @@ A: Предпазва от дублиране при мрежови грешки
 
 ---
 
-*Документацията е актуализирана: Април 2026*
+*Документацията е актуализирана: 26 октомври 2026*

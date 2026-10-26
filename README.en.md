@@ -21,6 +21,9 @@
    - [Get a product](#64-get-a-product)
    - [List products](#65-list-products)
    - [Bulk operations](#66-bulk-operations)
+   - [Review submissions](#67-review-submissions)
+   - [Approved catalog](#68-approved-catalog)
+   - [Administrative endpoints](#69-administrative-endpoints)
 7. [Product fields](#7-product-fields)
 8. [Error handling](#8-error-handling)
 9. [Limits and rules](#9-limits-and-rules)
@@ -37,8 +40,11 @@
 A REST API for adding and managing products in the Subra system. The API supports:
 
 - Creating, reading, updating, and deleting products (CRUD)
+- A list and status of the current client's own products
+- Review submissions and status counts
 - Bulk create and update
 - Fast price and stock updates
+- An export of the approved catalog
 - Idempotent creates
 
 ### 1.2 Base URLs
@@ -50,12 +56,11 @@ A REST API for adding and managing products in the Subra system. The API support
 
 ### 1.3 Tokens
 
-Two tokens are required:
+An administrator issues every token. Each token carries specific permissions, such as `GET:/api/v1/products` or `POST:/api/v1/product-submissions`. A missing permission returns `403`.
 
-- `catalog_token` — access to categories
-- `main_api_token` — product CRUD
-
-> Tokens are issued by a system administrator.
+- `catalog_token` — categories on `id.subra.bg`
+- `main_api_token` — products and submissions on `api.subra.bg`
+- `approved_products_key` — only `GET /api/v1/approved-products` and `GET /export/approved-products`
 
 ---
 
@@ -268,19 +273,25 @@ Authorization: Bearer <main_api_token>
 ```http
 GET /api/v1/products/{id}
 Authorization: Bearer <main_api_token>
+Accept: application/ld+json
 ```
+
+The response includes the product and its `status`. A client can update or delete only a product that the same client submitted.
 
 ### 6.5 List products
 
 ```http
-GET /api/v1/products?limit=20&offset=0
+GET /api/v1/products?page=1&itemsPerPage=30
 Authorization: Bearer <main_api_token>
+Accept: application/ld+json
 ```
+
+The list contains only products submitted by the token's user. Products are in `hydra:member`, and the total count is in `hydra:totalItems`. Every product includes `status`.
 
 **Query parameters:**
 
-- `limit` — number of results (default 20)
-- `offset` — pagination offset
+- `page` — page number, starting at 1
+- `itemsPerPage` — page size (default 30)
 
 ### 6.6 Bulk operations
 
@@ -382,6 +393,170 @@ Authorization: Bearer <main_api_token>
 ```
 
 **Supported fields:** `id`, `erpId`, `price`, `oldPrice`, `quantity`, `inPromotion`, `visibility`, `currencyId`
+
+### 6.7 Review submissions
+
+These endpoints are not in the OpenAPI document at `/api/v1/docs`. The token needs permission for the exact path, for example `GET:/api/v1/product-submissions`. The list and the stats contain only the current client's submissions.
+
+#### 6.7.1 Create a submission
+
+```http
+POST /api/v1/product-submissions
+Content-Type: application/json
+Authorization: Bearer <main_api_token>
+```
+
+```json
+{
+  "product": {
+    "title": "Test product",
+    "barcode": "3800123456789",
+    "price": "10.00",
+    "quantity": 50,
+    "categoryId": 35
+  }
+}
+```
+
+If a product with the same `barcode` already exists, the submission updates that product. If that product already has a pending submission, the response is `409`.
+
+**Success response (201):**
+
+```json
+{
+  "message": "Product submitted for review",
+  "submission": {
+    "id": 15,
+    "status": "pending",
+    "submittedAt": "2026-10-26 12:00:00",
+    "productId": 12345,
+    "title": "Test product",
+    "barcode": "3800123456789",
+    "babh": null,
+    "isUpdate": false
+  }
+}
+```
+
+#### 6.7.2 List the client's submissions
+
+```http
+GET /api/v1/product-submissions
+Authorization: Bearer <main_api_token>
+```
+
+```json
+{
+  "submissions": [
+    {
+      "id": 15,
+      "status": "changes_requested",
+      "submittedAt": "2026-10-26 12:00:00",
+      "reviewedAt": "2026-10-26 13:00:00",
+      "rejectionReason": null,
+      "changeRequest": "Add a leaflet.",
+      "product": {
+        "id": 12345,
+        "title": "Test product",
+        "barcode": "3800123456789",
+        "babh": null,
+        "price": "10.00",
+        "quantity": 50,
+        "visibility": 1
+      },
+      "changes": null,
+      "isUpdate": false
+    }
+  ]
+}
+```
+
+`rejectionReason` is set when a submission is rejected. `changeRequest` is set when an administrator asks for a correction. `changes` describes the differences when the submission updates an existing product.
+
+#### 6.7.3 Stats
+
+```http
+GET /api/v1/product-submissions/stats
+Authorization: Bearer <main_api_token>
+```
+
+```json
+{
+  "stats": {
+    "pending": 2,
+    "approved": 10,
+    "rejected": 1,
+    "changes_requested": 1,
+    "total": 14
+  }
+}
+```
+
+### 6.8 Approved catalog
+
+This exports approved products. It uses its own key, not the client CRUD token. Send the key as `X-Approved-Products-Key`, `X-Api-Key`, `Authorization: Bearer`, or the `key` query parameter.
+
+```http
+GET /api/v1/approved-products?limit=100&stock=in_stock
+X-Approved-Products-Key: <approved_products_key>
+```
+
+`GET /export/approved-products` returns the same response.
+
+**Query parameters:**
+
+- `limit` — from 1 to 500, default 100
+- `cursor` — `id` of the last product from the previous page; the next request uses `next_cursor`
+- `updated_since` — ISO 8601 timestamp
+- `category_id` — filter by category
+- `include_hidden=1` — include products whose `visibility` is 0
+- `stock` — `all`, `in_stock`, or `out_of_stock`
+
+```json
+{
+  "ok": true,
+  "items": [],
+  "limit": 100,
+  "cursor": 0,
+  "next_cursor": null,
+  "has_more": false,
+  "filters": {
+    "status": "approved",
+    "updated_since": null,
+    "category_id": null,
+    "include_hidden": false,
+    "stock": "in_stock"
+  }
+}
+```
+
+Each item includes `id`, `title`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `description`, `images`, `flags`, `created_at`, and `updated_at`.
+
+### 6.9 Administrative endpoints
+
+These are not available to a client token.
+
+```http
+POST /api/v1/products/bulk-approve
+POST /api/v1/products/bulk-reject
+Authorization: Bearer <admin_token>
+Content-Type: application/json
+```
+
+```json
+{ "productIds": [12345, 12346] }
+```
+
+They approve or reject only products whose status is `pending`. The token user must have the `ROLE_ADMIN` role.
+
+```http
+GET /api/v1/admin-audit/logs?page=1&limit=20
+Authorization: Bearer <admin_token>
+```
+
+`limit` is at most 100. The response is `{ "logs": [], "page": 1, "limit": 20 }`.
+
+Services inside the network can call `GET /internal/products/approved`. It requires the `X-Internal-Products-Secret` header. Parameters are `limit` (up to 200) and `updatedSince`.
 
 ---
 
@@ -548,8 +723,9 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 | Status | Description |
 |--------|-------------|
 | `pending` | Waiting for approval |
-| `approved` | Approved and visible when `visibility` is 1 |
+| `approved` | Approved, and visible when `visibility` is 1 |
 | `rejected` | Rejected |
+| `changes_requested` | Returned for correction |
 
 ---
 
@@ -604,13 +780,13 @@ A: After an administrator approves it and `visibility` is `1`.
 A: No. Images must already be available at an external URL. Send only the links.
 
 **Q: How do I list my products?**  
-A: `GET /api/v1/products` with pagination (`limit` and `offset`).
+A: `GET /api/v1/products?page=1&itemsPerPage=30`. The response contains only your products.
 
 **Q: Can I use my own ids?**  
 A: Yes. Send them in `erpId` on bulk operations.
 
 **Q: How do I check a product's status?**  
-A: `GET /api/v1/products/{id}` and read the `status` field.
+A: `GET /api/v1/products/{id}` or the list `GET /api/v1/products`. Read `status`. The rejection reason and the requested correction are in `GET /api/v1/product-submissions`. The counts are in `GET /api/v1/product-submissions/stats`.
 
 **Q: What is idempotency and why do I need it?**  
 A: It prevents duplicates when the network fails. The same `Idempotency-Key` with the same data always returns the same result.
@@ -626,4 +802,4 @@ For problems or questions:
 
 ---
 
-*Documentation updated: April 2026*
+*Documentation updated: 26 October 2026*

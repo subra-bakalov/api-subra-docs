@@ -57,9 +57,10 @@ REST API за добавяне и управление на продукти в 
 
 Токените се получават от администратор на системата. Всеки токен носи конкретни права (`GET:/api/v1/products`, `POST:/api/v1/product-submissions` и т.н.). Без съответното право отговорът е `403`.
 
-- `catalog_token` — категориите на `id.subra.bg`
 - `main_api_token` — продукти и подавания на `api.subra.bg`
 - `approved_products_key` — само `GET /api/v1/approved-products` и `GET /export/approved-products`
+
+Категориите на `https://id.subra.bg/categories` са публични и не изискват токен. Няма отделен sandbox: заявките са към тези продукционни адреси. Нов продукт остава `pending`, докато не бъде одобрен.
 
 ---
 
@@ -77,8 +78,8 @@ REST API за добавяне и управление на продукти в 
 1. **Import** → изберете двата `.json` файла
 2. Изберете environment **"Subra API Environment"** от dropdown в горния десен ъгъл
 3. Кликнете върху очето (👁️) и редактирайте стойностите:
-   - `catalog_token` - вашият токен за категории
    - `main_api_token` - вашият токен за продукти
+   - `approved_products_key` - ключът за одобрения каталог, ако го ползвате
 
 ### 2.3 Налични заявки в колекцията
 
@@ -139,7 +140,6 @@ Authorization: Bearer <your_token>
 
 ```http
 GET https://id.subra.bg/categories
-Authorization: Bearer <catalog_token>
 ```
 
 **Примерен отговор:**
@@ -155,7 +155,6 @@ Authorization: Bearer <catalog_token>
 
 ```http
 GET https://id.subra.bg/categories?id={category_id}
-Authorization: Bearer <catalog_token>
 ```
 
 Продукт може да се запише само в крайна категория (`isLeaf: true`). Ако `categoryId` или някое от `categoryIds` сочи към родителска категория, заявката връща **400**.
@@ -177,6 +176,7 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a  # Опционално
 ```json
 {
   "title": "Advanced Retinol Serum/ Серум за красива кожа х 30 ml",
+  "brand": "Example Brand",
   "categoryId": 35,
   "categoryIds": [35, 87],
   "currencyId": 1,
@@ -300,6 +300,7 @@ Authorization: Bearer <main_api_token>
   "items": [
     {
       "title": "Продукт 1",
+      "brand": "Example Brand",
       "categoryId": 35,
       "price": "10.00",
       "quantity": 50
@@ -345,7 +346,8 @@ Authorization: Bearer <main_api_token>
       "quantity": 60
     },
     {
-      "erpId": "ERP-002",
+      "id": 12347,
+      "brand": "Example Brand",
       "price": "26.00",
       "inPromotion": true
     }
@@ -374,7 +376,7 @@ Authorization: Bearer <main_api_token>
       "visibility": 1
     },
     {
-      "erpId": "ERP-002",
+      "id": 12347,
       "price": "29.99",
       "quantity": 0,
       "visibility": 0
@@ -383,7 +385,7 @@ Authorization: Bearer <main_api_token>
 }
 ```
 
-**Поддържани полета:** `id`, `erpId`, `price`, `oldPrice`, `quantity`, `inPromotion`, `visibility`, `currencyId`
+**Поддържани полета:** `id`, `price`, `oldPrice`, `quantity`, `inPromotion`, `visibility`, `currencyId`. Продуктът се намира само по `id`, върнато от API-то.
 
 ### 6.7 Подавания за преглед
 
@@ -565,6 +567,7 @@ Authorization: Bearer <admin_token>
 
 | Поле | Тип | Описание | Пример |
 |------|-----|----------|--------|
+| `brand` | string | Марка, до 255 символа | `"Example Brand"` |
 | `categoryIds` | array | Допълнителни категории | `[35, 87]` |
 | `currencyId` | integer | Валута (по подразбиране 1=BGN) | `1` |
 | `oldPrice` | string | Стара цена | `"14.90"` |
@@ -594,7 +597,6 @@ Authorization: Bearer <admin_token>
 | `visibility` | integer | 0=скрит, 1=видим | `1` |
 | `activationDate` | string | ISO 8601 дата | `"2025-03-24T10:00:00+00:00"` |
 | `image1` - `image5` | string | URL към снимки | `"https://..."` |
-| `erpId` | string | Ваш вътрешен ID | `"ERP-001"` |
 
 ---
 
@@ -747,7 +749,7 @@ curl -X POST https://api.subra.bg/api/v1/products/bulk/stock-price \
   -d '{
     "items": [
       {"id": 12345, "price": "9.99", "quantity": 100},
-      {"erpId": "ERP-002", "price": "19.99", "quantity": 50}
+      {"id": 12346, "price": "19.99", "quantity": 50}
     ]
   }'
 ```
@@ -766,7 +768,10 @@ A: Не, снимките трябва да са на външен URL. Пода
 A: `GET /api/v1/products?page=1&itemsPerPage=30`. Отговорът съдържа само вашите продукти.
 
 **Q: Може ли да използвам собствени ID-та?**  
-A: Да, чрез `erpId` полето при bulk операции.
+A: Не. След създаване използвайте `id`, което API-то връща. Поле `erpId` няма.
+
+**Q: Къде се подава марката?**  
+A: В полето `brand` при създаване, промяна и bulk операции.
 
 **Q: Как да проверя статуса на продукт?**  
 A: `GET /api/v1/products/{id}` или списъкът `GET /api/v1/products`. Полето е `status`. Причината за отказ и поисканата корекция са в `GET /api/v1/product-submissions`, а бройките са в `GET /api/v1/product-submissions/stats`.

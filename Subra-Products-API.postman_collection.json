@@ -10,13 +10,7 @@
       "name": "1. Get Categories",
       "request": {
         "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{catalog_token}}",
-            "type": "text"
-          }
-        ],
+        "header": [],
         "url": {
           "raw": "{{products_api_url}}/categories",
           "host": [
@@ -26,7 +20,7 @@
             "categories"
           ]
         },
-        "description": "Fetch all categories as a JSON list of id and name."
+        "description": "Public category list. No token. Choose a category with isLeaf true."
       },
       "event": [
         {
@@ -35,17 +29,15 @@
             "type": "text/javascript",
             "exec": [
               "const data = pm.response.json();",
-              "",
               "pm.test('Response is array', function () {",
               "  pm.expect(Array.isArray(data)).to.eql(true);",
               "});",
-              "",
-              "if (Array.isArray(data) && data.length > 0) {",
-              "  pm.environment.set('category_id', data[0].id);",
-              "  pm.environment.set('category_name', data[0].name);",
-              "}",
-              "",
-              "console.log('Selected category:', pm.environment.get('category_id'), pm.environment.get('category_name'));"
+              "const leaf = Array.isArray(data) ? data.find((row) => row.isLeaf === true) : null;",
+              "const chosen = leaf || (Array.isArray(data) ? data[0] : null);",
+              "if (chosen) {",
+              "  pm.environment.set('category_id', chosen.id);",
+              "  pm.environment.set('category_name', chosen.name);",
+              "}"
             ]
           }
         }
@@ -55,13 +47,7 @@
       "name": "2. Get Category By Id",
       "request": {
         "method": "GET",
-        "header": [
-          {
-            "key": "Authorization",
-            "value": "Bearer {{catalog_token}}",
-            "type": "text"
-          }
-        ],
+        "header": [],
         "url": {
           "raw": "{{products_api_url}}/categories?id={{category_id}}",
           "host": [
@@ -77,7 +63,7 @@
             }
           ]
         },
-        "description": "Fetch a single category by id."
+        "description": "Public category list. No token. Choose a category with isLeaf true."
       }
     },
     {
@@ -87,30 +73,37 @@
         "header": [
           {
             "key": "Authorization",
-            "value": "Bearer {{catalog_token}}",
+            "value": "Bearer {{main_api_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Accept",
+            "value": "application/ld+json",
             "type": "text"
           }
         ],
         "url": {
-          "raw": "{{products_api_url}}/products?limit={{limit}}&offset={{offset}}",
+          "raw": "{{main_api_url}}/api/v1/products?page={{page}}&itemsPerPage={{itemsPerPage}}",
           "host": [
-            "{{products_api_url}}"
+            "{{main_api_url}}"
           ],
           "path": [
+            "api",
+            "v1",
             "products"
           ],
           "query": [
             {
-              "key": "limit",
-              "value": "{{limit}}"
+              "key": "page",
+              "value": "{{page}}"
             },
             {
-              "key": "offset",
-              "value": "{{offset}}"
+              "key": "itemsPerPage",
+              "value": "{{itemsPerPage}}"
             }
           ]
         },
-        "description": "Fetch products list using pagination parameters."
+        "description": "Product collection for this token. Items are in hydra:member."
       }
     },
     {
@@ -131,7 +124,7 @@
         ],
         "body": {
           "mode": "raw",
-          "raw": "{\n  \"title\": \"Тестов продукт от Postman\",\n  \"categoryId\": {{category_id}},\n  \"currencyId\": 1,\n  \"price\": \"12.50\",\n  \"oldPrice\": \"14.90\",\n  \"quantity\": 5,\n  \"visibility\": 1,\n  \"barcode\": \"3800123456789\",\n  \"babh\": \"BG202600123\",\n  \"slug\": \"testov-produkt-ot-postman\",\n  \"text\": \"Кратко описание на продукта.\",\n  \"leaflet\": \"Информация за прием и съхранение.\",\n  \"searchWords\": \"продукт тест postman\",\n  \"metaTitle\": \"Тестов продукт\",\n  \"metaKeywords\": \"тестов продукт, postman, api\",\n  \"metaDescription\": \"Примерен продукт, създаден през API.\",\n  \"i18nForeignKey\": 1001,\n  \"i18nLocale\": \"bg-BG\",\n  \"itemWeight\": 0.25,\n  \"itemHeight\": 12.5,\n  \"itemWidth\": 4.2,\n  \"itemLength\": 4.2,\n  \"itemVolume\": 0.15,\n  \"itemWeightUnit\": \"kg\",\n  \"itemVolumeUnit\": \"l\",\n  \"isNew\": true,\n  \"isBestseller\": false,\n  \"isByPrescription\": false,\n  \"inPromotion\": false,\n  \"activationDate\": \"2026-03-24T10:00:00+00:00\",\n  \"createdAt\": \"2026-03-24T10:00:00+00:00\",\n  \"updatedAt\": \"2026-03-24T10:00:00+00:00\",\n  \"image1\": \"https://example.com/product-1.jpg\",\n  \"image2\": \"https://example.com/product-2.jpg\",\n  \"image3\": \"https://example.com/product-3.jpg\",\n  \"image4\": \"https://example.com/product-4.jpg\",\n  \"image5\": \"https://example.com/product-5.jpg\"\n}"
+          "raw": "{\n  \"title\": \"Тестов продукт от Postman\",\n  \"brand\": \"Example Brand\",\n  \"categoryId\": {{category_id}},\n  \"currencyId\": 1,\n  \"price\": \"12.50\",\n  \"oldPrice\": \"14.90\",\n  \"quantity\": 5,\n  \"visibility\": 1,\n  \"barcode\": \"3800123456789\",\n  \"babh\": \"BG202600123\",\n  \"slug\": \"testov-produkt-ot-postman\",\n  \"text\": \"Кратко описание на продукта.\",\n  \"leaflet\": \"Информация за прием и съхранение.\",\n  \"searchWords\": \"продукт тест postman\",\n  \"metaTitle\": \"Тестов продукт\",\n  \"metaKeywords\": \"тестов продукт, postman, api\",\n  \"metaDescription\": \"Примерен продукт, създаден през API.\",\n  \"i18nForeignKey\": 1001,\n  \"i18nLocale\": \"bg-BG\",\n  \"itemWeight\": 0.25,\n  \"itemHeight\": 12.5,\n  \"itemWidth\": 4.2,\n  \"itemLength\": 4.2,\n  \"itemVolume\": 0.15,\n  \"itemWeightUnit\": \"kg\",\n  \"itemVolumeUnit\": \"l\",\n  \"isNew\": true,\n  \"isBestseller\": false,\n  \"isByPrescription\": false,\n  \"inPromotion\": false,\n  \"activationDate\": \"2026-03-24T10:00:00+00:00\",\n  \"createdAt\": \"2026-03-24T10:00:00+00:00\",\n  \"updatedAt\": \"2026-03-24T10:00:00+00:00\",\n  \"image1\": \"https://example.com/product-1.jpg\",\n  \"image2\": \"https://example.com/product-2.jpg\",\n  \"image3\": \"https://example.com/product-3.jpg\",\n  \"image4\": \"https://example.com/product-4.jpg\",\n  \"image5\": \"https://example.com/product-5.jpg\"\n}"
         },
         "url": {
           "raw": "{{main_api_url}}/api/v1/products",
@@ -144,7 +137,7 @@
             "products"
           ]
         },
-        "description": "Create a product using the selected categoryId."
+        "description": "Creates a pending product. brand is the product brand. categoryId must be a leaf category."
       },
       "event": [
         {
@@ -249,6 +242,14 @@
     {
       "key": "created_product_id",
       "value": ""
+    },
+    {
+      "key": "page",
+      "value": "1"
+    },
+    {
+      "key": "itemsPerPage",
+      "value": "30"
     }
   ]
 }

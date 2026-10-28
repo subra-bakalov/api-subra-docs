@@ -58,9 +58,10 @@ A REST API for adding and managing products in the Subra system. The API support
 
 An administrator issues every token. Each token carries specific permissions, such as `GET:/api/v1/products` or `POST:/api/v1/product-submissions`. A missing permission returns `403`.
 
-- `catalog_token` — categories on `id.subra.bg`
 - `main_api_token` — products and submissions on `api.subra.bg`
 - `approved_products_key` — only `GET /api/v1/approved-products` and `GET /export/approved-products`
+
+Categories at `https://id.subra.bg/categories` are public and do not require a token. There is no separate sandbox: requests go to these production URLs. A new product stays `pending` until it is approved.
 
 ---
 
@@ -78,8 +79,8 @@ An administrator issues every token. Each token carries specific permissions, su
 1. **Import** → select both `.json` files
 2. Choose the **"Subra API Environment"** environment from the dropdown in the top-right corner
 3. Click the eye icon (👁️) and set:
-   - `catalog_token` — your category token
    - `main_api_token` — your product token
+   - `approved_products_key` — the approved-catalog key, if you use that feed
 
 ### 2.3 Requests in the collection
 
@@ -140,7 +141,6 @@ Authorization: Bearer <your_token>
 
 ```http
 GET https://id.subra.bg/categories
-Authorization: Bearer <catalog_token>
 ```
 
 **Example response:**
@@ -159,7 +159,6 @@ Category names in the live catalog are returned in Bulgarian.
 
 ```http
 GET https://id.subra.bg/categories?id={category_id}
-Authorization: Bearer <catalog_token>
 ```
 
 A product can be assigned only to a leaf category (`isLeaf: true`). If `categoryId` or any value in `categoryIds` is a parent category, the request returns **400**.
@@ -182,6 +181,7 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a  # Optional
 ```json
 {
   "title": "Advanced Retinol Serum/ Серум за красива кожа х 30 ml",
+  "brand": "Example Brand",
   "categoryId": 35,
   "categoryIds": [35, 87],
   "currencyId": 1,
@@ -308,6 +308,7 @@ Authorization: Bearer <main_api_token>
   "items": [
     {
       "title": "Продукт 1",
+      "brand": "Example Brand",
       "categoryId": 35,
       "price": "10.00",
       "quantity": 50
@@ -354,7 +355,8 @@ Authorization: Bearer <main_api_token>
       "quantity": 60
     },
     {
-      "erpId": "ERP-002",
+      "id": 12347,
+      "brand": "Example Brand",
       "price": "26.00",
       "inPromotion": true
     }
@@ -383,7 +385,7 @@ Authorization: Bearer <main_api_token>
       "visibility": 1
     },
     {
-      "erpId": "ERP-002",
+      "id": 12347,
       "price": "29.99",
       "quantity": 0,
       "visibility": 0
@@ -392,7 +394,7 @@ Authorization: Bearer <main_api_token>
 }
 ```
 
-**Supported fields:** `id`, `erpId`, `price`, `oldPrice`, `quantity`, `inPromotion`, `visibility`, `currencyId`
+**Supported fields:** `id`, `price`, `oldPrice`, `quantity`, `inPromotion`, `visibility`, `currencyId`. A product is identified only by the `id` returned by the API.
 
 ### 6.7 Review submissions
 
@@ -574,6 +576,7 @@ Services inside the network can call `GET /internal/products/approved`. It requi
 
 | Field | Type | Description | Example |
 |-------|------|-------------|---------|
+| `brand` | string | Brand, up to 255 characters | `"Example Brand"` |
 | `categoryIds` | array | Additional categories | `[35, 87]` |
 | `currencyId` | integer | Currency (default 1 = BGN) | `1` |
 | `oldPrice` | string | Previous price | `"14.90"` |
@@ -603,7 +606,6 @@ Services inside the network can call `GET /internal/products/approved`. It requi
 | `visibility` | integer | 0 = hidden, 1 = visible | `1` |
 | `activationDate` | string | ISO 8601 date | `"2025-03-24T10:00:00+00:00"` |
 | `image1` - `image5` | string | Image URL | `"https://..."` |
-| `erpId` | string | Your internal id | `"ERP-001"` |
 
 ---
 
@@ -764,7 +766,7 @@ curl -X POST https://api.subra.bg/api/v1/products/bulk/stock-price \
   -d '{
     "items": [
       {"id": 12345, "price": "9.99", "quantity": 100},
-      {"erpId": "ERP-002", "price": "19.99", "quantity": 50}
+      {"id": 12346, "price": "19.99", "quantity": 50}
     ]
   }'
 ```
@@ -783,7 +785,10 @@ A: No. Images must already be available at an external URL. Send only the links.
 A: `GET /api/v1/products?page=1&itemsPerPage=30`. The response contains only your products.
 
 **Q: Can I use my own ids?**  
-A: Yes. Send them in `erpId` on bulk operations.
+A: No. After creation, use the `id` returned by the API. There is no `erpId` field.
+
+**Q: Where do I send the brand?**  
+A: In the `brand` field on create, update, and bulk operations.
 
 **Q: How do I check a product's status?**  
 A: `GET /api/v1/products/{id}` or the list `GET /api/v1/products`. Read `status`. The rejection reason and the requested correction are in `GET /api/v1/product-submissions`. The counts are in `GET /api/v1/product-submissions/stats`.

@@ -212,6 +212,57 @@
           }
         }
       ]
+    },
+    {
+      "name": "6. Set absolute stock",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{main_api_token}}",
+            "type": "text"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json",
+            "type": "text"
+          }
+        ],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"items\": [\n    {\n      \"id\": {{created_product_id}},\n      \"quantity\": 0\n    }\n  ]\n}"
+        },
+        "url": {
+          "raw": "{{main_api_url}}/api/v1/products/bulk/stock-price",
+          "host": ["{{main_api_url}}"],
+          "path": ["api", "v1", "products", "bulk", "stock-price"]
+        },
+        "description": "Set the absolute quantity. 0 means out of stock and does not delete the product. The approval status stays unchanged."
+      }
+    },
+    {
+      "name": "7. List partner orders",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{main_api_token}}",
+            "type": "text"
+          }
+        ],
+        "url": {
+          "raw": "{{shop_url}}/api/partner/orders?page=1&per_page=50",
+          "host": ["{{shop_url}}"],
+          "path": ["api", "partner", "orders"],
+          "query": [
+            { "key": "page", "value": "1" },
+            { "key": "per_page", "value": "50" }
+          ]
+        },
+        "description": "Read orders already placed in the shop. The token must include orders:read. This does not create an order."
+      }
     }
   ],
   "variable": [
@@ -222,6 +273,10 @@
     {
       "key": "main_api_url",
       "value": "https://api.subra.bg"
+    },
+    {
+      "key": "shop_url",
+      "value": "https://subra.bg"
     },
     {
       "key": "catalog_token",

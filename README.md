@@ -1,9 +1,9 @@
 # Subra Products API - Ръководство за интеграция
 
-[English](README.en.md)
+[English](README.en.md) · [Промени](CHANGELOG.md)
 
-> **Версия:** 1.1  
-> **Последна актуализация:** 29 октомври 2026
+> **Версия:** 1.2  
+> **Последна актуализация:** 19 ноември 2026
 
 ---
 
@@ -518,6 +518,7 @@ X-Approved-Products-Key: <approved_products_key>
 ```json
 {
   "ok": true,
+  "view": "summary",
   "items": [],
   "limit": 100,
   "cursor": 0,
@@ -533,7 +534,17 @@ X-Approved-Products-Key: <approved_products_key>
 }
 ```
 
-Всеки елемент съдържа `id`, `partner_tag`, `title`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `description`, `images`, `flags` и датите `created_at` и `updated_at`.
+Всеки елемент съдържа `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags` и датите `created_at` и `updated_at`.
+
+`description`, `leaflet`, `search_words` и meta полетата са в детайла:
+
+```http
+GET /api/v1/approved-products/62
+X-Approved-Products-Key: <approved_products_key>
+If-None-Match: "<etag от предишния отговор>"
+```
+
+Същият адрес съществува и като `GET /export/approved-products/62`. Отговорът е `"view": "full"`. Ако каталогът не се е променил, сървърът връща `304` и празно тяло. Отговорът се пази 45 секунди.
 
 ### 6.9 Поръчки на партньора
 

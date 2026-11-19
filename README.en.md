@@ -1,9 +1,9 @@
 # Subra Products API - Integration guide
 
-[Български](README.md)
+[Български](README.md) · [Changelog](CHANGELOG.en.md)
 
-> **Version:** 1.1  
-> **Last updated:** 29 October 2026
+> **Version:** 1.2  
+> **Last updated:** 19 November 2026
 
 ---
 
@@ -527,6 +527,7 @@ X-Approved-Products-Key: <approved_products_key>
 ```json
 {
   "ok": true,
+  "view": "summary",
   "items": [],
   "limit": 100,
   "cursor": 0,
@@ -542,7 +543,17 @@ X-Approved-Products-Key: <approved_products_key>
 }
 ```
 
-Each item includes `id`, `partner_tag`, `title`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `description`, `images`, `flags`, `created_at`, and `updated_at`.
+Each item includes `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags`, `created_at`, and `updated_at`.
+
+`description`, `leaflet`, `search_words`, and the meta fields are on the detail resource:
+
+```http
+GET /api/v1/approved-products/62
+X-Approved-Products-Key: <approved_products_key>
+If-None-Match: "<etag from the previous response>"
+```
+
+The same address is available as `GET /export/approved-products/62`. That response is `"view": "full"`. When the catalog is unchanged, the server returns `304` and an empty body. The response is kept for 45 seconds.
 
 ### 6.9 Partner orders
 

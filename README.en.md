@@ -536,6 +536,8 @@ With a client token the same two levels are `GET /api/v1/approved-products` and 
 - `limit` — from 1 to 500, default 100
 - `cursor` — `id` of the last product from the previous page; the next request uses `next_cursor`
 - `updated_since` — ISO 8601 timestamp. With it, the response also includes `removed`: ids that are no longer in the catalog
+- `since_revision` — revision from the previous response. Returns changes after it and does not depend on the clock
+- `until_revision` — the upper bound from the first page. Send it again on every later page of the same pull
 - `removed_cursor` — `id` of the last removed id; the next request uses `removed_next_cursor`
 - `category_id` — filter by category
 - `include_hidden=1` — include products whose `visibility` is 0
@@ -554,6 +556,7 @@ With a client token the same two levels are `GET /api/v1/approved-products` and 
   "removed_cursor": 0,
   "removed_next_cursor": null,
   "removed_has_more": false,
+  "revision": 1200,
   "filters": {
     "status": "approved",
     "updated_since": null,
@@ -567,6 +570,8 @@ With a client token the same two levels are `GET /api/v1/approved-products` and 
 Each item includes `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags`, `created_at`, and `updated_at`.
 
 `description`, `leaflet`, `search_words`, and the meta fields are only on the detail resource. When the result is unchanged, a request with the same `If-None-Match` receives `304` and an empty body. The response is kept for 45 seconds. `updated_since` is the time of the last successful pull. When it is set, remove every id in `removed` from the store: the product was rejected or hidden. A full pull without `updated_since` returns an empty `removed` and is not a delete list. A pending product is not included in `removed`. When `removed_has_more` is `true`, continue with `removed_cursor`.
+
+`revision` is the catalog sequence at the time of the response. The next pull sends that value as `since_revision`. While `has_more` or `removed_has_more` is `true`, repeat the same `since_revision` and the `until_revision` from the first page. After the last page, store `revision`. With `since_revision`, `removed` also includes a deleted product. A change from before this version is caught by one full pull.
 
 ### 6.9 Partner orders
 
@@ -714,19 +719,17 @@ Missing category:
 
 ```json
 {
-  "error": {
-    "status": 400,
-    "title": "Bad Request",
-    "detail": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
-    "path": "/api/v1/products",
-    "violations": [
-      {
-        "field": "",
-        "message": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
-        "code": null
-      }
-    ]
-  }
+  "ok": false,
+  "error": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
+  "request_id": "8f3c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": 400,
+  "violations": [
+    {
+      "field": "",
+      "message": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
+      "code": null
+    }
+  ]
 }
 ```
 
@@ -734,19 +737,17 @@ Parent category:
 
 ```json
 {
-  "error": {
-    "status": 400,
-    "title": "Bad Request",
-    "detail": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
-    "path": "/api/v1/products",
-    "violations": [
-      {
-        "field": "",
-        "message": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
-        "code": null
-      }
-    ]
-  }
+  "ok": false,
+  "error": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
+  "request_id": "8f3c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": 400,
+  "violations": [
+    {
+      "field": "",
+      "message": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
+      "code": null
+    }
+  ]
 }
 ```
 
@@ -754,19 +755,17 @@ Parent category:
 
 ```json
 {
-  "error": {
-    "status": 422,
-    "title": "Unprocessable Entity",
-    "detail": "Validation failed.",
-    "path": "/api/v1/products",
-    "violations": [
-      {
-        "field": "images",
-        "message": "Максимум 5 снимки за продукт.",
-        "code": null
-      }
-    ]
-  }
+  "ok": false,
+  "error": "Validation failed.",
+  "request_id": "8f3c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": 422,
+  "violations": [
+    {
+      "field": "images",
+      "message": "Максимум 5 снимки за продукт.",
+      "code": null
+    }
+  ]
 }
 ```
 
@@ -804,7 +803,14 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 
 ### 9.5 Request id and limits
 
-Every response on `/api` and on `/export/approved-products` includes the `X-Request-ID` header. If you send one, the server returns the same value. If you omit it, the server creates one. Quote that value when you report a failed call.
+Every response on `/api` and on `/export/approved-products` includes the `X-Request-ID` header. If you send one, the server returns the same value. If you omit it, the server creates one. On an error the same value is also in the body as `request_id`.
+
+```http
+GET /api/v1/requests/<X-Request-ID>
+Authorization: Bearer <main_api_token>
+```
+
+The response shows the time, path, method, status, and `rate_limited`. Another client's id returns `404`.
 
 Every response that has a limit includes `X-RateLimit-Limit` and `X-RateLimit-Remaining` for the tighter window. `429` means that limit is exhausted. The body is `{ "ok": false, "error": "...", "limit": 120, "window": "minute" }` and includes `Retry-After` and `X-Request-ID`.
 

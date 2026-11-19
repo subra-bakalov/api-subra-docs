@@ -19,6 +19,9 @@ The detail response is `"view": "full"`.
 
 For repeat downloads:
 
+- An error is now one JSON object: `ok`, `error` as text, `request_id`, `status`, and `violations` when present. `error.detail` is now the `error` field itself.
+- `since_revision` returns changes after the revision from the previous response. `revision` is the upper bound. `removed` also includes a deleted product.
+- `GET /api/v1/requests/{request_id}` with the caller's token shows the time, path, and status. Another client's id returns `404`.
 - When the request includes `updated_since`, `removed` lists ids that are no longer in the catalog. The store deletes those. A full pull without `updated_since` returns an empty `removed`.
 - Submitting again with the same `Idempotency-Key` and the same body returns the first submission and does not create a second one.
 - The response includes `X-RateLimit-Limit` and `X-RateLimit-Remaining`. A `429` body is `{ "ok": false, "error", "limit", "window" }` and includes `Retry-After` and `X-Request-ID`.

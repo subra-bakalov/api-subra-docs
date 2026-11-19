@@ -527,6 +527,8 @@ X-Approved-Products-Key: <approved_products_key>
 - `limit` — от 1 до 500, по подразбиране 100
 - `cursor` — `id` на последния продукт от предишната страница; следващата заявка ползва `next_cursor`
 - `updated_since` — ISO 8601 дата. С него отговорът носи и `removed`: номерата, които вече не са в каталога
+- `since_revision` — пореден номер от предишния отговор. Връща промените след него и не зависи от часовника
+- `until_revision` — горната граница от първата страница. Подавайте я на всяка следваща страница от същото теглене
 - `removed_cursor` — `id` на последния номер от `removed`; следващата заявка ползва `removed_next_cursor`
 - `category_id` — филтър по категория
 - `include_hidden=1` — включва продукти с `visibility` 0
@@ -545,6 +547,7 @@ X-Approved-Products-Key: <approved_products_key>
   "removed_cursor": 0,
   "removed_next_cursor": null,
   "removed_has_more": false,
+  "revision": 1200,
   "filters": {
     "status": "approved",
     "updated_since": null,
@@ -558,6 +561,8 @@ X-Approved-Products-Key: <approved_products_key>
 Всеки елемент съдържа `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags` и датите `created_at` и `updated_at`.
 
 `description`, `leaflet`, `search_words` и meta полетата са само в детайла. Ако резултатът не се е променил, заявка със същия `If-None-Match` получава `304` и празно тяло. Отговорът се пази 45 секунди. `updated_since` е часът на последното успешно теглене. Когато е подаден, махнете от магазина всеки номер в `removed`: продуктът е отхвърлен или скрит. Пълното теглене без `updated_since` връща празен `removed` и не се ползва за триене. Чакащ продукт не влиза в `removed`. Ако `removed_has_more` е `true`, продължете с `removed_cursor`.
+
+`revision` е поредният номер на каталога в момента на отговора. За следващото теглене подайте `since_revision` с тази стойност. Докато `has_more` или `removed_has_more` е `true`, повтаряйте същия `since_revision` и `until_revision` от първата страница. След последната страница запазете `revision`. `removed` при `since_revision` включва и изтрит продукт. Промяна преди тази версия се хваща с едно пълно теглене.
 
 ### 6.9 Поръчки на партньора
 
@@ -705,19 +710,17 @@ Authorization: Bearer <main_api_token>
 
 ```json
 {
-  "error": {
-    "status": 400,
-    "title": "Bad Request",
-    "detail": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
-    "path": "/api/v1/products",
-    "violations": [
-      {
-        "field": "",
-        "message": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
-        "code": null
-      }
-    ]
-  }
+  "ok": false,
+  "error": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
+  "request_id": "8f3c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": 400,
+  "violations": [
+    {
+      "field": "",
+      "message": "Invalid category id(s): 999999. Use GET /categories to fetch a valid category id.",
+      "code": null
+    }
+  ]
 }
 ```
 
@@ -725,19 +728,17 @@ Authorization: Bearer <main_api_token>
 
 ```json
 {
-  "error": {
-    "status": 400,
-    "title": "Bad Request",
-    "detail": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
-    "path": "/api/v1/products",
-    "violations": [
-      {
-        "field": "",
-        "message": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
-        "code": null
-      }
-    ]
-  }
+  "ok": false,
+  "error": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
+  "request_id": "8f3c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": 400,
+  "violations": [
+    {
+      "field": "",
+      "message": "categoryId \"35\" is a parent category (isLeaf: false). Products can only use a leaf category.",
+      "code": null
+    }
+  ]
 }
 ```
 
@@ -745,19 +746,17 @@ Authorization: Bearer <main_api_token>
 
 ```json
 {
-  "error": {
-    "status": 422,
-    "title": "Unprocessable Entity",
-    "detail": "Validation failed.",
-    "path": "/api/v1/products",
-    "violations": [
-      {
-        "field": "images",
-        "message": "Максимум 5 снимки за продукт.",
-        "code": null
-      }
-    ]
-  }
+  "ok": false,
+  "error": "Validation failed.",
+  "request_id": "8f3c1a2b4d5e6f708192a3b4c5d6e7f8",
+  "status": 422,
+  "violations": [
+    {
+      "field": "images",
+      "message": "Максимум 5 снимки за продукт.",
+      "code": null
+    }
+  ]
 }
 ```
 
@@ -790,7 +789,14 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 
 ### 9.5 Номер на заявката и лимити
 
-Всеки отговор на `/api` и на `/export/approved-products` носи заглавие `X-Request-ID`. Ако го изпратите вие, сървърът връща същия номер. Ако липсва, сървърът създава нов. При грешка цитирайте този номер.
+Всеки отговор на `/api` и на `/export/approved-products` носи заглавие `X-Request-ID`. Ако го изпратите вие, сървърът връща същия номер. Ако липсва, сървърът създава нов. При грешка същият номер е и в тялото като `request_id`.
+
+```http
+GET /api/v1/requests/<X-Request-ID>
+Authorization: Bearer <main_api_token>
+```
+
+Отговорът показва часа, адреса, метода, статуса и `rate_limited`. Номер на друг клиент връща `404`.
 
 Всеки отговор, за който важи лимит, носи `X-RateLimit-Limit` и `X-RateLimit-Remaining` за по-тесния прозорец. `429` означава, че лимитът е изчерпан. Тялото е `{ "ok": false, "error": "...", "limit": 120, "window": "minute" }` и носи `Retry-After` и `X-Request-ID`.
 

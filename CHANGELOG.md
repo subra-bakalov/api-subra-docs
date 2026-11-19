@@ -19,6 +19,9 @@ GET /export/approved-products/{id}
 
 За повторяемо теглене:
 
+- Грешката вече е един JSON: `ok`, `error` като текст, `request_id`, `status` и при нужда `violations`. `error.detail` вече е самото поле `error`.
+- `since_revision` връща промените след поредния номер от предишния отговор. `revision` е горната граница. `removed` включва и изтрит продукт.
+- `GET /api/v1/requests/{request_id}` със собствения токен показва часа, адреса и статуса. Чужд номер връща `404`.
 - Когато заявката носи `updated_since`, `removed` съдържа номерата, които вече не са в каталога. Магазинът ги маха. Пълното теглене без `updated_since` връща празен `removed`.
 - Повторно подаване на заявка със същия `Idempotency-Key` и същото тяло връща първата заявка и не създава втора.
 - Отговорът носи `X-RateLimit-Limit` и `X-RateLimit-Remaining`. При `429` тялото е `{ "ok": false, "error", "limit", "window" }` и включва `Retry-After` и `X-Request-ID`.

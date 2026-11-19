@@ -526,7 +526,8 @@ X-Approved-Products-Key: <approved_products_key>
 
 - `limit` — от 1 до 500, по подразбиране 100
 - `cursor` — `id` на последния продукт от предишната страница; следващата заявка ползва `next_cursor`
-- `updated_since` — ISO 8601 дата
+- `updated_since` — ISO 8601 дата. С него отговорът носи и `removed`: номерата, които вече не са в каталога
+- `removed_cursor` — `id` на последния номер от `removed`; следващата заявка ползва `removed_next_cursor`
 - `category_id` — филтър по категория
 - `include_hidden=1` — включва продукти с `visibility` 0
 - `stock` — `all`, `in_stock` или `out_of_stock`
@@ -536,10 +537,14 @@ X-Approved-Products-Key: <approved_products_key>
   "ok": true,
   "view": "summary",
   "items": [],
+  "removed": [],
   "limit": 100,
   "cursor": 0,
   "next_cursor": null,
   "has_more": false,
+  "removed_cursor": 0,
+  "removed_next_cursor": null,
+  "removed_has_more": false,
   "filters": {
     "status": "approved",
     "updated_since": null,
@@ -552,7 +557,7 @@ X-Approved-Products-Key: <approved_products_key>
 
 Всеки елемент съдържа `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags` и датите `created_at` и `updated_at`.
 
-`description`, `leaflet`, `search_words` и meta полетата са само в детайла. Ако резултатът не се е променил, заявка със същия `If-None-Match` получава `304` и празно тяло. Отговорът се пази 45 секунди. `updated_since` е часът на последното успешно теглене.
+`description`, `leaflet`, `search_words` и meta полетата са само в детайла. Ако резултатът не се е променил, заявка със същия `If-None-Match` получава `304` и празно тяло. Отговорът се пази 45 секунди. `updated_since` е часът на последното успешно теглене. Когато е подаден, махнете от магазина всеки номер в `removed`: продуктът е отхвърлен или скрит. Пълното теглене без `updated_since` връща празен `removed` и не се ползва за триене. Чакащ продукт не влиза в `removed`. Ако `removed_has_more` е `true`, продължете с `removed_cursor`.
 
 ### 6.9 Поръчки на партньора
 
@@ -775,19 +780,19 @@ Authorization: Bearer <main_api_token>
 - Пример: `"2025-03-24T10:00:00+00:00"`
 
 ### 9.4 Идемпотентност
-Добавете header при създаване на продукт:
+Добавете header при създаване на продукт и при подаване на заявка за одобрение:
 ```http
 Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 ```
 
-- Същият key + същи payload = връща същия продукт
+- Същият key + същи payload = връща същия продукт или същата заявка. Повторната заявка има `"replayed": true`
 - Същият key + различен payload = 409 Conflict
 
 ### 9.5 Номер на заявката и лимити
 
 Всеки отговор на `/api` и на `/export/approved-products` носи заглавие `X-Request-ID`. Ако го изпратите вие, сървърът връща същия номер. Ако липсва, сървърът създава нов. При грешка цитирайте този номер.
 
-`429` означава, че лимитът за този прозорец е изчерпан. Отговорът носи `Retry-After`.
+Всеки отговор, за който важи лимит, носи `X-RateLimit-Limit` и `X-RateLimit-Remaining` за по-тесния прозорец. `429` означава, че лимитът е изчерпан. Тялото е `{ "ok": false, "error": "...", "limit": 120, "window": "minute" }` и носи `Retry-After` и `X-Request-ID`.
 
 | Кой | Минута | Час |
 |-----|--------|-----|

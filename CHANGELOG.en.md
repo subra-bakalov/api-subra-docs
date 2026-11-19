@@ -19,6 +19,9 @@ The detail response is `"view": "full"`.
 
 For repeat downloads:
 
+- When the request includes `updated_since`, `removed` lists ids that are no longer in the catalog. The store deletes those. A full pull without `updated_since` returns an empty `removed`.
+- Submitting again with the same `Idempotency-Key` and the same body returns the first submission and does not create a second one.
+- The response includes `X-RateLimit-Limit` and `X-RateLimit-Remaining`. A `429` body is `{ "ok": false, "error", "limit", "window" }` and includes `Retry-After` and `X-Request-ID`.
 - Every catalog response carries `X-Request-ID`. Quote that value when you report a failed call.
 - The shared key allows 120 requests per minute and 3000 per hour. Above the limit the response is `429` with `Retry-After`. A client token uses the limit set on that token.
 - `updated_since` returns products changed after the last successful pull.

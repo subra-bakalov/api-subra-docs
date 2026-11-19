@@ -535,7 +535,8 @@ With a client token the same two levels are `GET /api/v1/approved-products` and 
 
 - `limit` — from 1 to 500, default 100
 - `cursor` — `id` of the last product from the previous page; the next request uses `next_cursor`
-- `updated_since` — ISO 8601 timestamp
+- `updated_since` — ISO 8601 timestamp. With it, the response also includes `removed`: ids that are no longer in the catalog
+- `removed_cursor` — `id` of the last removed id; the next request uses `removed_next_cursor`
 - `category_id` — filter by category
 - `include_hidden=1` — include products whose `visibility` is 0
 - `stock` — `all`, `in_stock`, or `out_of_stock`
@@ -545,10 +546,14 @@ With a client token the same two levels are `GET /api/v1/approved-products` and 
   "ok": true,
   "view": "summary",
   "items": [],
+  "removed": [],
   "limit": 100,
   "cursor": 0,
   "next_cursor": null,
   "has_more": false,
+  "removed_cursor": 0,
+  "removed_next_cursor": null,
+  "removed_has_more": false,
   "filters": {
     "status": "approved",
     "updated_since": null,
@@ -561,7 +566,7 @@ With a client token the same two levels are `GET /api/v1/approved-products` and 
 
 Each item includes `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags`, `created_at`, and `updated_at`.
 
-`description`, `leaflet`, `search_words`, and the meta fields are only on the detail resource. When the result is unchanged, a request with the same `If-None-Match` receives `304` and an empty body. The response is kept for 45 seconds. `updated_since` is the time of the last successful pull.
+`description`, `leaflet`, `search_words`, and the meta fields are only on the detail resource. When the result is unchanged, a request with the same `If-None-Match` receives `304` and an empty body. The response is kept for 45 seconds. `updated_since` is the time of the last successful pull. When it is set, remove every id in `removed` from the store: the product was rejected or hidden. A full pull without `updated_since` returns an empty `removed` and is not a delete list. A pending product is not included in `removed`. When `removed_has_more` is `true`, continue with `removed_cursor`.
 
 ### 6.9 Partner orders
 
@@ -788,20 +793,20 @@ Parent category:
 
 ### 9.4 Idempotency
 
-Send this header when creating a product:
+Send this header when creating a product and when submitting a product for review:
 
 ```http
 Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 ```
 
-- The same key and the same payload return the same product
+- The same key and the same payload return the same product or the same submission. A repeated submission includes `"replayed": true`
 - The same key and a different payload return `409 Conflict`
 
 ### 9.5 Request id and limits
 
 Every response on `/api` and on `/export/approved-products` includes the `X-Request-ID` header. If you send one, the server returns the same value. If you omit it, the server creates one. Quote that value when you report a failed call.
 
-`429` means the limit for that window is exhausted. The response includes `Retry-After`.
+Every response that has a limit includes `X-RateLimit-Limit` and `X-RateLimit-Remaining` for the tighter window. `429` means that limit is exhausted. The body is `{ "ok": false, "error": "...", "limit": 120, "window": "minute" }` and includes `Retry-After` and `X-Request-ID`.
 
 | Caller | Per minute | Per hour |
 |--------|------------|----------|

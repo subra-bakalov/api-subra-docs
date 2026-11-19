@@ -45,7 +45,7 @@ A REST API for adding and managing products in the Subra system. The API support
 - Bulk create and update
 - Fast price and stock updates, without a new approval
 - Reading orders that customers already placed in the store
-- An export of the approved catalog
+- An export of the approved catalog: the list is a short summary, and the description and leaflet are on a separate URL for one product
 - Idempotent creates
 
 ### 1.2 Base URLs
@@ -60,7 +60,8 @@ A REST API for adding and managing products in the Subra system. The API support
 An administrator issues every token. Each token carries specific permissions, such as `GET:/api/v1/products` or `POST:/api/v1/product-submissions`. A missing permission returns `403`.
 
 - `main_api_token` — products and submissions on `api.subra.bg`
-- `approved_products_key` — only `GET /api/v1/approved-products` and `GET /export/approved-products`
+- `approved_products_key` — the whole approved catalog at `GET /export/approved-products` and `GET /export/approved-products/{id}`
+- a client token on `GET /api/v1/approved-products` returns only that client's approved products
 
 Categories at `https://id.subra.bg/categories` are public and do not require a token. There is no separate sandbox: requests go to these production URLs. A new product stays `pending` until it is approved.
 
@@ -129,7 +130,7 @@ Send the absolute quantity on hand, not a delta from the previous value:
 POST /api/v1/products/bulk/stock-price
 ```
 
-`quantity: 0` means the product is out of stock. It does not delete the product. The status stays `approved`. The store picks up the change within about 10 minutes. For a daily sync, send the changed rows every 10–15 minutes.
+`quantity: 0` means the product is out of stock. It does not delete the product. The status stays `approved`. The store reads `GET /export/approved-products?updated_since=...` and picks up the change within about 10 minutes. For a daily sync, send the changed rows every 10–15 minutes.
 
 ### 4.3 Reading orders
 
@@ -506,14 +507,29 @@ Authorization: Bearer <main_api_token>
 
 ### 6.8 Approved catalog
 
-This exports approved products. It uses its own key, not the client CRUD token. Send the key as `X-Approved-Products-Key`, `X-Api-Key`, `Authorization: Bearer`, or the `key` query parameter.
+There are two ways to read it, and the response shape is the same.
+
+| Who reads | URL | Key |
+|-----------|-----|-----|
+| The store, the whole catalog | `GET /export/approved-products` | `approved_products_key` |
+| A client, only that client's approved products | `GET /api/v1/approved-products` | `main_api_token` |
+
+Send the shared key as `X-Approved-Products-Key`, `X-Api-Key`, `Authorization: Bearer`, or the `key` query parameter. Send the client token as `Authorization: Bearer`.
 
 ```http
-GET /api/v1/approved-products?limit=100&stock=in_stock
+GET /export/approved-products?limit=100&updated_since=2026-11-19T08:00:00Z
+X-Approved-Products-Key: <approved_products_key>
+If-None-Match: "<etag from the previous response>"
+```
+
+The list is `"view": "summary"`. One product is `"view": "full"`:
+
+```http
+GET /export/approved-products/62
 X-Approved-Products-Key: <approved_products_key>
 ```
 
-`GET /export/approved-products` returns the same response.
+With a client token the same two levels are `GET /api/v1/approved-products` and `GET /api/v1/approved-products/62`.
 
 **Query parameters:**
 
@@ -545,15 +561,7 @@ X-Approved-Products-Key: <approved_products_key>
 
 Each item includes `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags`, `created_at`, and `updated_at`.
 
-`description`, `leaflet`, `search_words`, and the meta fields are on the detail resource:
-
-```http
-GET /api/v1/approved-products/62
-X-Approved-Products-Key: <approved_products_key>
-If-None-Match: "<etag from the previous response>"
-```
-
-The same address is available as `GET /export/approved-products/62`. That response is `"view": "full"`. When the catalog is unchanged, the server returns `304` and an empty body. The response is kept for 45 seconds.
+`description`, `leaflet`, `search_words`, and the meta fields are only on the detail resource. When the result is unchanged, a request with the same `If-None-Match` receives `304` and an empty body. The response is kept for 45 seconds. `updated_since` is the time of the last successful pull.
 
 ### 6.9 Partner orders
 
@@ -840,6 +848,19 @@ curl -X POST https://api.subra.bg/api/v1/products/bulk/stock-price \
   }'
 ```
 
+### Approved catalog
+
+```bash
+curl "https://api.subra.bg/export/approved-products?limit=100&updated_since=2026-11-19T08:00:00Z" \
+  -H "X-Approved-Products-Key: <approved_products_key>" \
+  -H 'If-None-Match: "<etag>"'
+
+curl "https://api.subra.bg/export/approved-products/62" \
+  -H "X-Approved-Products-Key: <approved_products_key>"
+```
+
+`304` means the body from the previous response is still valid. With a client token the same list is `GET /api/v1/approved-products` and contains only that client's products.
+
 ### Partner orders
 
 ```bash
@@ -859,6 +880,9 @@ A: No. Images must already be available at an external URL. Send only the links.
 
 **Q: How do I list my products?**  
 A: `GET /api/v1/products?page=1&itemsPerPage=30`. The response contains only your products.
+
+**Q: How do I pull the approved catalog?**  
+A: The store uses `GET /export/approved-products` with `approved_products_key`. A client uses `GET /api/v1/approved-products` with its own token and sees only its own approved products. Both lists are `view: summary`. The description and leaflet are on `GET .../{id}` (`view: full`). For a repeat pull, send `updated_since` and `If-None-Match`. An unchanged result returns `304`.
 
 **Q: Can I use my own ids?**  
 A: No. After creation, use the `id` returned by the API. There is no `erpId` field.
@@ -889,4 +913,4 @@ For problems or questions:
 
 ---
 
-*Documentation updated: 29 October 2026*
+*Documentation updated: 19 November 2026*

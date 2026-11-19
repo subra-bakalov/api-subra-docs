@@ -8,7 +8,7 @@
 
 Одобреният каталог вече има две нива.
 
-Списъкът `GET /api/v1/approved-products` и `GET /export/approved-products` връща `"view": "summary"`. В него са цената, наличността, снимките и идентификаторите. Полетата `description`, `leaflet`, `search_words`, `meta_title`, `meta_keywords` и `meta_description` се четат от детайла:
+Списъкът `GET /export/approved-products` и `GET /api/v1/approved-products` връща `"view": "summary"`. В него са цената, наличността, снимките и идентификаторите. Общият ключ чете целия каталог от `/export/approved-products`. Клиентският токен на `/api/v1/approved-products` вижда само своите одобрени продукти. Полетата `description`, `leaflet`, `search_words`, `meta_title`, `meta_keywords` и `meta_description` се четат от детайла:
 
 ```http
 GET /api/v1/approved-products/{id}

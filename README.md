@@ -44,7 +44,7 @@ REST API за добавяне и управление на продукти в 
 - Масови операции (bulk create/update)
 - Бързо обновяване на цени и наличности, без ново одобрение
 - Проследяване на поръчките, направени в магазина subra.bg
-- Експорт на одобрения каталог
+- Експорт на одобрения каталог: списъкът е кратко резюме, а описанието и листовката са на отделен адрес за един продукт
 - Идемпотентност при създаване
 
 ### 1.2 Base URLs
@@ -59,7 +59,8 @@ REST API за добавяне и управление на продукти в 
 Токените се получават от администратор на системата. Всеки токен носи конкретни права (`GET:/api/v1/products`, `POST:/api/v1/product-submissions` и т.н.). Без съответното право отговорът е `403`.
 
 - `main_api_token` — продукти и подавания на `api.subra.bg`
-- `approved_products_key` — само `GET /api/v1/approved-products` и `GET /export/approved-products`
+- `approved_products_key` — целият одобрен каталог на `GET /export/approved-products` и `GET /export/approved-products/{id}`
+- клиентският токен на `GET /api/v1/approved-products` връща само одобрените продукти на този клиент
 
 Категориите на `https://id.subra.bg/categories` са публични и не изискват токен. Няма отделен sandbox: заявките са към тези продукционни адреси. Нов продукт остава `pending`, докато не бъде одобрен.
 
@@ -128,7 +129,7 @@ Authorization: Bearer <your_token>
 POST /api/v1/products/bulk/stock-price
 ```
 
-`quantity: 0` означава изчерпан продукт и не го изтрива. Статусът остава `approved`. Магазинът прихваща промяната до около 10 минути. За ежедневна синхронизация е достатъчно да пращате променените редове на всеки 10–15 минути.
+`quantity: 0` означава изчерпан продукт и не го изтрива. Статусът остава `approved`. Магазинът чете `GET /export/approved-products?updated_since=...` и прихваща промяната до около 10 минути. За ежедневна синхронизация е достатъчно да пращате променените редове на всеки 10–15 минути.
 
 ### 4.3 Четене на поръчки
 
@@ -497,14 +498,29 @@ Authorization: Bearer <main_api_token>
 
 ### 6.8 Одобрен каталог
 
-Публичен експорт на одобрените продукти. Ползва отделен ключ, не клиентския токен за CRUD. Ключът се подава като `X-Approved-Products-Key`, `X-Api-Key`, `Authorization: Bearer` или query параметър `key`.
+Има два начина за четене и еднаква форма на отговора.
+
+| Кой чете | Адрес | Ключ |
+|----------|--------|------|
+| Магазинът, целият каталог | `GET /export/approved-products` | `approved_products_key` |
+| Клиентът, само неговите одобрени продукти | `GET /api/v1/approved-products` | `main_api_token` |
+
+Общият ключ се подава като `X-Approved-Products-Key`, `X-Api-Key`, `Authorization: Bearer` или query параметър `key`. Клиентският токен се подава като `Authorization: Bearer`.
 
 ```http
-GET /api/v1/approved-products?limit=100&stock=in_stock
+GET /export/approved-products?limit=100&updated_since=2026-11-19T08:00:00Z
+X-Approved-Products-Key: <approved_products_key>
+If-None-Match: "<etag от предишния отговор>"
+```
+
+Списъкът е `"view": "summary"`. Детайлът на един продукт е `"view": "full"`:
+
+```http
+GET /export/approved-products/62
 X-Approved-Products-Key: <approved_products_key>
 ```
 
-Същият отговор е и на `GET /export/approved-products`.
+С клиентски токен същите две нива са `GET /api/v1/approved-products` и `GET /api/v1/approved-products/62`.
 
 **Query параметри:**
 
@@ -536,15 +552,7 @@ X-Approved-Products-Key: <approved_products_key>
 
 Всеки елемент съдържа `id`, `partner_tag`, `title`, `brand`, `slug`, `barcode`, `price`, `old_price`, `quantity`, `visibility`, `category_id`, `category_ids`, `images`, `flags` и датите `created_at` и `updated_at`.
 
-`description`, `leaflet`, `search_words` и meta полетата са в детайла:
-
-```http
-GET /api/v1/approved-products/62
-X-Approved-Products-Key: <approved_products_key>
-If-None-Match: "<etag от предишния отговор>"
-```
-
-Същият адрес съществува и като `GET /export/approved-products/62`. Отговорът е `"view": "full"`. Ако каталогът не се е променил, сървърът връща `304` и празно тяло. Отговорът се пази 45 секунди.
+`description`, `leaflet`, `search_words` и meta полетата са само в детайла. Ако резултатът не се е променил, заявка със същия `If-None-Match` получава `304` и празно тяло. Отговорът се пази 45 секунди. `updated_since` е часът на последното успешно теглене.
 
 ### 6.9 Поръчки на партньора
 
@@ -823,6 +831,18 @@ curl -X POST https://api.subra.bg/api/v1/products/bulk/stock-price \
   }'
 ```
 
+### Одобрен каталог
+```bash
+curl "https://api.subra.bg/export/approved-products?limit=100&updated_since=2026-11-19T08:00:00Z" \
+  -H "X-Approved-Products-Key: <approved_products_key>" \
+  -H 'If-None-Match: "<etag>"'
+
+curl "https://api.subra.bg/export/approved-products/62" \
+  -H "X-Approved-Products-Key: <approved_products_key>"
+```
+
+`304` означава, че тялото от предишния отговор още е валидно. С клиентски токен същият списък е `GET /api/v1/approved-products` и съдържа само продуктите на този клиент.
+
 ### Поръчки на партньора
 ```bash
 curl "https://subra.bg/api/partner/orders?page=1&per_page=50&since=2026-10-01" \
@@ -841,6 +861,9 @@ A: Не, снимките трябва да са на външен URL. Пода
 
 **Q: Как да получа списък с моите продукти?**  
 A: `GET /api/v1/products?page=1&itemsPerPage=30`. Отговорът съдържа само вашите продукти.
+
+**Q: Как се тегли одобреният каталог?**  
+A: Магазинът ползва `GET /export/approved-products` с `approved_products_key`. Клиентът ползва `GET /api/v1/approved-products` със своя токен и вижда само своите одобрени продукти. И двата списъка са `view: summary`. Описанието и листовката са на `GET .../{id}` (`view: full`). За повторение пратете `updated_since` и `If-None-Match`. Непроменен резултат връща `304`.
 
 **Q: Може ли да използвам собствени ID-та?**  
 A: Не. След създаване използвайте `id`, което API-то връща. Поле `erpId` няма.
@@ -870,4 +893,4 @@ A: Предпазва от дублиране при мрежови грешки
 
 ---
 
-*Документацията е актуализирана: 29 октомври 2026*
+*Документацията е актуализирана: 19 ноември 2026*

@@ -8,7 +8,7 @@ Changes to the Subra Products API that affect an integration. The newest entry i
 
 The approved catalog now has two levels.
 
-`GET /api/v1/approved-products` and `GET /export/approved-products` return `"view": "summary"`. The list carries price, stock, images, and identifiers. `description`, `leaflet`, `search_words`, `meta_title`, `meta_keywords`, and `meta_description` are on the detail resource:
+`GET /export/approved-products` and `GET /api/v1/approved-products` return `"view": "summary"`. The list carries price, stock, images, and identifiers. The shared key reads the whole catalog from `/export/approved-products`. A client token on `/api/v1/approved-products` sees only that client's approved products. `description`, `leaflet`, `search_words`, `meta_title`, `meta_keywords`, and `meta_description` are on the detail resource:
 
 ```http
 GET /api/v1/approved-products/{id}

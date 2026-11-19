@@ -797,7 +797,18 @@ Idempotency-Key: c3b6d2f1-7b5a-4f8b-9d2a-1f2e3d4c5b6a
 - The same key and the same payload return the same product
 - The same key and a different payload return `409 Conflict`
 
-### 9.5 Product statuses
+### 9.5 Request id and limits
+
+Every response on `/api` and on `/export/approved-products` includes the `X-Request-ID` header. If you send one, the server returns the same value. If you omit it, the server creates one. Quote that value when you report a failed call.
+
+`429` means the limit for that window is exhausted. The response includes `Retry-After`.
+
+| Caller | Per minute | Per hour |
+|--------|------------|----------|
+| Shared catalog key | 120 requests | 3000 requests |
+| Client token | the limit set on that token | the limit set on that token |
+
+### 9.6 Product statuses
 
 | Status | Description |
 |--------|-------------|

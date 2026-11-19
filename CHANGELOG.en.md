@@ -19,6 +19,8 @@ The detail response is `"view": "full"`.
 
 For repeat downloads:
 
+- Every catalog response carries `X-Request-ID`. Quote that value when you report a failed call.
+- The shared key allows 120 requests per minute and 3000 per hour. Above the limit the response is `429` with `Retry-After`. A client token uses the limit set on that token.
 - `updated_since` returns products changed after the last successful pull.
 - The response includes `ETag`. The next request with the same `If-None-Match` receives `304` and an empty body when the result is unchanged.
 - The response uses `Cache-Control: private, max-age=45`.
